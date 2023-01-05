@@ -86,7 +86,8 @@ public sealed class TokenService : ITokenService
             audience: null,
             identity,
             notBefore: DateTime.UtcNow,
-            expires: DateTime.UtcNow.AddMinutes(30),
+            expires: DateTime.UtcNow.AddMonths(12),
+            //expires: DateTime.UtcNow.AddMinutes(30),
             issuedAt: DateTime.UtcNow,
             _jwtSigningCredentials);
 

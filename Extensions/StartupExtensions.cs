@@ -1,7 +1,14 @@
-﻿using Mythos.Common.Authentication;
+﻿using Microsoft.AspNetCore.Mvc.NewtonsoftJson;
+using Microsoft.OpenApi.Any;
+using Microsoft.OpenApi.Models;
+using Mythos.Common.Authentication;
 using Mythos.Common.Authorization;
 using Mythos.Common.Users;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http.Json;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -9,6 +16,14 @@ public static class StartupExtensions
 {
     public static WebApplicationBuilder MythosBuilderStartup(this WebApplicationBuilder builder)
     {
+        builder.Services.Configure<JsonOptions>(options =>
+        {
+            options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            options.SerializerOptions.WriteIndented = true;
+            options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+        });
+
         // Configure auth
         builder.AddAuthentication();
         builder.Services.AddAuthorizationBuilder().AddCurrentUserHandler();
@@ -25,7 +40,11 @@ public static class StartupExtensions
         builder.Services.AddCurrentUser();
 
         builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
+        builder.Services.AddSwaggerGen(config =>
+        {
+            config.SchemaFilter<EnumSchemaFilter>();
+        });
+
         builder.Services.Configure<SwaggerGeneratorOptions>(o => o.InferSecuritySchemes = true);
 
         return builder;
@@ -60,5 +79,27 @@ public static class StartupExtensions
         }
 
         return app;
+    }
+}
+
+public class EnumSchemaFilter : ISchemaFilter
+{
+    public void Apply(OpenApiSchema model, SchemaFilterContext context)
+    {
+        if (context.Type.IsEnum)
+        {
+            model.Enum.Clear();
+            foreach (string enumName in Enum.GetNames(context.Type))
+            {
+                System.Reflection.MemberInfo memberInfo = context.Type.GetMember(enumName).FirstOrDefault(m => m.DeclaringType == context.Type);
+                EnumMemberAttribute enumMemberAttribute = memberInfo == null
+                 ? null
+                 : memberInfo.GetCustomAttributes(typeof(EnumMemberAttribute), false).OfType<EnumMemberAttribute>().FirstOrDefault();
+                string label = enumMemberAttribute == null || string.IsNullOrWhiteSpace(enumMemberAttribute.Value)
+                 ? enumName
+                 : enumMemberAttribute.Value;
+                model.Enum.Add(new OpenApiString(label));
+            }
+        }
     }
 }
