@@ -1,4 +1,5 @@
 ﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace Mythos.Common.Authentication;
@@ -7,58 +8,49 @@ public static class AuthenticationExtensions
 {
     public static WebApplicationBuilder AddAuthentication(this WebApplicationBuilder builder)
     {
-        var authenticationBuilder = builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme);
-
-        // Add the local JWT bearer
-        authenticationBuilder.AddJwtBearer(options =>
+        var authenticationBuilder = builder.Services.AddAuthentication(options =>
         {
-            // Let the client choose the scheme via a header. This will 
-            // redirect to another. If none was specified we'll use our default scheme.
-            options.ForwardDefaultSelector = context => context.Request.Headers["X-Auth-Scheme"];
+            options.DefaultScheme = "cookie";
+            options.DefaultChallengeScheme = "oidc";
+            options.DefaultSignOutScheme = "oidc";
+        })
+        .AddCookie("cookie", options =>
+        {
+            // set session lifetime
+            options.ExpireTimeSpan = TimeSpan.FromHours(8);
+
+            // sliding or absolute
+            options.SlidingExpiration = false;
+
+            // host prefixed cookie name
+            options.Cookie.Name = "__Mythos-spa";
+
+            // strict SameSite handling
+            options.Cookie.SameSite = SameSiteMode.Strict;
+        })
+        .AddOpenIdConnect("oidc", options =>
+        {
+            options.Authority = "https://localhost:7286";
+
+            options.ClientId = "web";
+            options.ClientSecret = "secret";
+            options.ResponseType = "code";
+
+            options.ResponseMode = "query";
+
+            options.MapInboundClaims = false;
+            options.GetClaimsFromUserInfoEndpoint = true;
+
+            options.SaveTokens = true;
+
+            options.Scope.Clear();
+            options.Scope.Add("openid");
+            options.Scope.Add("profile");
+            options.Scope.Add("offline_access");
+            options.Scope.Add("api1");
+
+            options.GetClaimsFromUserInfoEndpoint = true;
         });
-
-        // An example of what the expected schema looks like
-        // "Authentication": {
-        //     "Schemes": {
-        //       "<scheme>": {
-        //         <options>
-        //       }
-        //     }
-        //   }
-
-        // TODO: Make this support any configured provider
-        var section = builder.Configuration.GetSection("Authentication:Schemes:Auth0");
-
-        if (section.Exists())
-        {
-            // This is what the auth0 configuration looks like:
-            //{
-            //    "Authentication": {
-            //        "Schemes": {
-            //            "Auth0": {
-            //                "ValidAudiences": [ "<your audience here>" ],
-            //                "Authority": "<your authority here>"
-            //            }
-            //        }
-            //    }
-            //}
-            authenticationBuilder.AddJwtBearer("Auth0", options =>
-            {
-                options.Events = new()
-                {
-                    OnTokenValidated = context =>
-                    {
-                        if (context.Principal?.Identity is ClaimsIdentity identity)
-                        {
-                            // Add this claim in memory so that we can look up the user by provider name
-                            identity.AddClaim(new("provider", "Auth0"));
-                        }
-
-                        return Task.CompletedTask;
-                    }
-                };
-            });
-        }
 
         return builder;
     }

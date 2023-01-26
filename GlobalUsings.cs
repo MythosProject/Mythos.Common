@@ -5,7 +5,6 @@ global using System.Text;
 global using System.Threading.Tasks;
 global using Microsoft.AspNetCore.OpenApi;
 global using Swashbuckle.AspNetCore;
-global using Mythos.Common.Models;
 global using Microsoft.Extensions.DependencyInjection.Extensions;
 global using Mythos.Common;
 global using Microsoft.AspNetCore.Http.HttpResults;
